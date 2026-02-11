@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Launch Raycaster",
+            "request": "launch",
+            "mainClass": "com.raycasting.Main",
+            "vmArgs": "-Xmx2G",
+            "args": [],
+            "console": "integratedTerminal"
+        }
+    ]
+}
