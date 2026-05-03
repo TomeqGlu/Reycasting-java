@@ -5,7 +5,7 @@ public class Map {
     private int width;
     private int height;
 
-    // 0 = puste, 1-9 = różne typy ścian
+    // 0 = puste, 1-64 = różne typy ścian
     // TODO: Dodać wiecej typów textur
     private static final int[][] DEFAULT_MAP = {
             { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
