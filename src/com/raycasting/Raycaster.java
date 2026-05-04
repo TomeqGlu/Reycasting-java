@@ -12,8 +12,8 @@ public class Raycaster {
     private GameState gameState;
     private TextureManager textureManager;
 
-    private static final double MAX_LIGHT_DISTANCE = 8.0;
-    private static final double MIN_LIGHT = 0.25;
+    private static final double MAX_LIGHT_DISTANCE = 8.0; // im wieksze tym wolniejsze ciemnienie
+    private static final double MIN_LIGHT = 0.25; // im nizsze tym dalsze sciany ciemniejsze
 
     public Raycaster(Map map, Player player, TextureManager textureManager) {
         this.map = map;
