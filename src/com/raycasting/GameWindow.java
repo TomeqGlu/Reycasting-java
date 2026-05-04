@@ -106,24 +106,33 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     }
 
     private void handleKeyboardInput() {
-        double oldX = player.getX();
-        double oldY = player.getY();
+        double moveX = 0;
+        double moveY = 0;
+
+        double angle = player.getAngle();
+        double speed = player.getMoveSpeed();
 
         if (keys[KeyEvent.VK_W]) {
-            player.moveForward();
+            moveX += Math.cos(angle) * speed;
+            moveY += Math.sin(angle) * speed;
         }
 
         if (keys[KeyEvent.VK_S]) {
-            player.moveBackward();
+            moveX -= Math.cos(angle) * speed;
+            moveY -= Math.sin(angle) * speed;
         }
 
         if (keys[KeyEvent.VK_A]) {
-            player.strafeLeft();
+            moveX += Math.cos(angle - Math.PI / 2) * speed;
+            moveY += Math.sin(angle - Math.PI / 2) * speed;
         }
 
         if (keys[KeyEvent.VK_D]) {
-            player.strafeRight();
+            moveX += Math.cos(angle + Math.PI / 2) * speed;
+            moveY += Math.sin(angle + Math.PI / 2) * speed;
         }
+
+        moveWithWallSliding(moveX, moveY);
 
         if (keys[KeyEvent.VK_LEFT]) {
             player.rotateLeft();
@@ -132,22 +141,31 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
         if (keys[KeyEvent.VK_RIGHT]) {
             player.rotateRight();
         }
+    }
 
-        if (isPlayerTooCloseToWall()) {
-            player.setPosition(oldX, oldY);
+    private void moveWithWallSliding(double moveX, double moveY) {
+        double oldX = player.getX();
+        double oldY = player.getY();
+
+        double newX = oldX + moveX;
+        double newY = oldY + moveY;
+
+        if (canStandAt(newX, oldY)) {
+            player.setPosition(newX, oldY);
+        }
+
+        if (canStandAt(player.getX(), newY)) {
+            player.setPosition(player.getX(), newY);
         }
     }
 
-    private boolean isPlayerTooCloseToWall() {
-        double radius = 0.25;
+    private boolean canStandAt(double x, double y) {
+        double radius = 0.22;
 
-        double x = player.getX();
-        double y = player.getY();
-
-        return map.isWall((int) (x - radius), (int) y)
-                || map.isWall((int) (x + radius), (int) y)
-                || map.isWall((int) x, (int) (y - radius))
-                || map.isWall((int) x, (int) (y + radius));
+        return !map.isWall((int) (x - radius), (int) (y - radius))
+                && !map.isWall((int) (x + radius), (int) (y - radius))
+                && !map.isWall((int) (x - radius), (int) (y + radius))
+                && !map.isWall((int) (x + radius), (int) (y + radius));
     }
 
     private void handleMouseInput() {
