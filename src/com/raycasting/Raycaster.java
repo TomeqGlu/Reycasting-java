@@ -1,6 +1,7 @@
 package com.raycasting;
 
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
@@ -36,6 +37,8 @@ public class Raycaster {
         } else {
             drawTextured3D(buffer);
         }
+
+        drawHud(buffer);
     }
 
     private void drawTopDownView(BufferedImage buffer) {
@@ -98,10 +101,6 @@ public class Raycaster {
 
             g.drawLine(playerScreenX, playerScreenY, hitScreenX, hitScreenY);
         }
-
-        g.setColor(Color.WHITE);
-        g.drawString("TOP DOWN VIEW - mapa + promienie", 20, buffer.getHeight() - 40);
-        g.drawString("SPACJA - przełącz na TEXTURED_3D", 20, buffer.getHeight() - 20);
 
         g.dispose();
     }
@@ -269,6 +268,44 @@ public class Raycaster {
 
             pixels[y * screenWidth + screenX] = color;
         }
+    }
+
+    private void drawHud(BufferedImage buffer) {
+        Graphics2D g = buffer.createGraphics();
+
+        int width = buffer.getWidth();
+        int height = buffer.getHeight();
+        int hudHeight = 96;
+        int hudY = height - hudHeight;
+
+        g.setColor(new Color(0, 35, 120));
+        g.fillRect(0, hudY, width, hudHeight);
+
+        g.setColor(new Color(20, 90, 200));
+        g.drawRect(0, hudY, width - 1, hudHeight - 1);
+
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Arial", Font.BOLD, 18));
+
+        g.drawString("JAVA RAYCASTING", 24, hudY + 28);
+        g.drawString("MODE: " + gameState, 24, hudY + 58);
+
+        g.drawString("HEALTH", 260, hudY + 28);
+        g.drawString("100%", 280, hudY + 58);
+
+        g.drawString("AMMO", 410, hudY + 28);
+        g.drawString("50", 430, hudY + 58);
+
+        g.drawString("POS", 540, hudY + 28);
+        g.drawString(
+                String.format("%.2f / %.2f", player.getX(), player.getY()),
+                540,
+                hudY + 58);
+
+        g.setFont(new Font("Arial", Font.PLAIN, 13));
+        g.drawString("WASD - ruch | Mysz - obrót | SPACJA - tryb | 1 - mapa | 2 - tekstury", 24, hudY + 84);
+
+        g.dispose();
     }
 
     private void renderBackground(int[] pixels, int screenWidth, int screenHeight) {
