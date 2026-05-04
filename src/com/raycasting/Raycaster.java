@@ -12,6 +12,9 @@ public class Raycaster {
     private GameState gameState;
     private TextureManager textureManager;
 
+    private static final double MAX_LIGHT_DISTANCE = 8.0;
+    private static final double MIN_LIGHT = 0.25;
+
     public Raycaster(Map map, Player player, TextureManager textureManager) {
         this.map = map;
         this.player = player;
@@ -28,7 +31,6 @@ public class Raycaster {
     }
 
     public void castAllRays(int screenWidth) {
-        // Niepotrzebne w tej wersji.
     }
 
     public void draw(BufferedImage buffer) {
@@ -63,10 +65,7 @@ public class Raycaster {
 
                 if (cell > 0) {
                     g.setColor(Color.YELLOW);
-                    g.drawString(
-                            String.valueOf(cell),
-                            offsetX + x * cellSize + 8,
-                            offsetY + y * cellSize + 16);
+                    g.drawString(String.valueOf(cell), offsetX + x * cellSize + 8, offsetY + y * cellSize + 16);
                 }
             }
         }
@@ -206,12 +205,7 @@ public class Raycaster {
         double hitX = playerX + rayDirX * distance;
         double hitY = playerY + rayDirY * distance;
 
-        return new RayHit(
-                hitX,
-                hitY,
-                distance,
-                wallType,
-                hitVerticalWall);
+        return new RayHit(hitX, hitY, distance, wallType, hitVerticalWall);
     }
 
     private void drawWallColumn(
@@ -232,14 +226,7 @@ public class Raycaster {
         int clippedStart = Math.max(drawStart, 0);
         int clippedEnd = Math.min(drawEnd, screenHeight - 1);
 
-        double wallX;
-
-        if (hit.hitVerticalWall) {
-            wallX = hit.hitY;
-        } else {
-            wallX = hit.hitX;
-        }
-
+        double wallX = hit.hitVerticalWall ? hit.hitY : hit.hitX;
         wallX -= Math.floor(wallX);
 
         int textureX = (int) (wallX * texture.getWidth());
@@ -254,6 +241,12 @@ public class Raycaster {
 
         textureX = clamp(textureX, 0, texture.getWidth() - 1);
 
+        double light = calculateLight(hit.distance);
+
+        if (!hit.hitVerticalWall) {
+            light *= 0.75;
+        }
+
         for (int y = clippedStart; y < clippedEnd; y++) {
             double texturePosition = (y - drawStart) / (double) lineHeight;
             int textureY = (int) (texturePosition * texture.getHeight());
@@ -261,13 +254,36 @@ public class Raycaster {
             textureY = clamp(textureY, 0, texture.getHeight() - 1);
 
             int color = texture.getRGB(textureX, textureY);
-
-            if (!hit.hitVerticalWall) {
-                color = darken(color);
-            }
+            color = applyLight(color, light);
 
             pixels[y * screenWidth + screenX] = color;
         }
+    }
+
+    private double calculateLight(double distance) {
+        double light = 1.0 - (distance / MAX_LIGHT_DISTANCE);
+
+        if (light < MIN_LIGHT) {
+            light = MIN_LIGHT;
+        }
+
+        if (light > 1.0) {
+            light = 1.0;
+        }
+
+        return light;
+    }
+
+    private int applyLight(int color, double light) {
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+
+        r = (int) (r * light);
+        g = (int) (g * light);
+        b = (int) (b * light);
+
+        return (r << 16) | (g << 8) | b;
     }
 
     private void drawHud(BufferedImage buffer) {
@@ -321,10 +337,6 @@ public class Raycaster {
         }
     }
 
-    private int darken(int color) {
-        return (color & 0xFEFEFE) >> 1;
-    }
-
     private int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -336,12 +348,7 @@ public class Raycaster {
         int wallType;
         boolean hitVerticalWall;
 
-        RayHit(
-                double hitX,
-                double hitY,
-                double distance,
-                int wallType,
-                boolean hitVerticalWall) {
+        RayHit(double hitX, double hitY, double distance, int wallType, boolean hitVerticalWall) {
             this.hitX = hitX;
             this.hitY = hitY;
             this.distance = distance;
