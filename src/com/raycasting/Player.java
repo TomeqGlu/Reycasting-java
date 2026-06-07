@@ -6,6 +6,10 @@ public class Player {
     private double fov;
     private double moveSpeed;
     private double rotationSpeed;
+    private int hp = 100;
+    private boolean isAlive = true;
+    private long lastShotTime = 0;
+    private static final long SHOOT_COOLDOWN = 300;
 
     public Player(double startX, double startY) {
         this.x = startX;
@@ -39,6 +43,33 @@ public class Player {
 
     public double getRotationSpeed() {
         return rotationSpeed;
+    }
+
+    public int getHP() {
+        return hp;
+    }
+
+    public boolean isAlive() {
+        return isAlive;
+    }
+
+    public void takeDamage(int damage) {
+        hp = Math.max(0, hp - damage);
+        if (hp <= 0) {
+            isAlive = false;
+        }
+    }
+
+    public void heal(int amount) {
+        hp = Math.min(100, hp + amount);
+    }
+
+    public boolean canShoot() {
+        return System.currentTimeMillis() - lastShotTime >= SHOOT_COOLDOWN;
+    }
+
+    public void recordShot() {
+        lastShotTime = System.currentTimeMillis();
     }
 
     // Settery

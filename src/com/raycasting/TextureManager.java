@@ -21,7 +21,7 @@ public class TextureManager {
     }
 
     private void loadTextures(String resourcePath) {
-        try (InputStream inputStream = getClass().getResourceAsStream(resourcePath)) {
+        try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(resourcePath)){
             if (inputStream == null) {
                 throw new RuntimeException("Nie znaleziono pliku tekstur: " + resourcePath);
             }
