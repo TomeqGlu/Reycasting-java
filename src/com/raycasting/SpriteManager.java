@@ -1,6 +1,5 @@
 package com.raycasting;
 
-import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,8 +8,7 @@ import javax.imageio.ImageIO;
 public class SpriteManager {
     private static final int GRID_COLS = 8;
     private static final int SPRITE_SIZE = 64;
-    private static final int SPRITE_STRIDE = 65; // 64 + 1px odstępu
-    private static final int KEY_COLOR = 0xFF00FF; // różowy #FF00FF (magenta) - RGB without alpha
+    private static final int SPRITE_STRIDE = 65;
 
     private BufferedImage[][] sprites; // [row][col]
 
@@ -25,28 +23,35 @@ public class SpriteManager {
             }
 
             BufferedImage spriteSheet = ImageIO.read(inputStream);
-            
-            // Obsługa małych sprite sheetów (np. broń)
+
+            // Obsługa sprite sheetów broni, np. 326x62 z 5 klatkami.
+            // Ważne: klatki nie zawsze są ułożone dokładnie co 62 px. Dla 326x62
+            // stary kod brał starty 0,62,124..., przez co w animacji wpadały linie/separatory.
             if (spriteSheet.getHeight() < SPRITE_SIZE || spriteSheet.getWidth() < SPRITE_SIZE) {
-                // Jeśli to sprite z kilkoma klatkami w jednym rzędzie (np. broń 326x62)
-                // Wyciągnij WSZYSTKIE klatki (każda 62x62)
                 int frameHeight = spriteSheet.getHeight();
-                int frameWidth = frameHeight;  // Kwadratowe klatki
-                int frameCount = spriteSheet.getWidth() / frameWidth;
-                
+                int frameWidth = frameHeight;
+                int frameCount = Math.max(1, (int) Math.round(spriteSheet.getWidth() / (double) frameWidth));
+                int stride = frameCount <= 1 ? frameWidth : (spriteSheet.getWidth() - frameWidth) / (frameCount - 1);
+
                 sprites = new BufferedImage[1][frameCount];
                 for (int i = 0; i < frameCount; i++) {
-                    BufferedImage frame = spriteSheet.getSubimage(i * frameWidth, 0, frameWidth, frameHeight);
-                    sprites[0][i] = makeTransparent(frame);
+                    int sourceX = Math.min(i * stride, spriteSheet.getWidth() - frameWidth);
+                    BufferedImage frame = spriteSheet.getSubimage(sourceX, 0, frameWidth, frameHeight);
+                    sprites[0][i] = makeTransparent(cropWeaponFrame(frame));
                 }
-                System.out.println("SpriteManager loaded weapon: " + spriteSheet.getWidth() + "x" + spriteSheet.getHeight() + " (" + frameCount + " frames, " + frameWidth + "x" + frameHeight + " each)");
+
+                System.out.println("SpriteManager loaded weapon: "
+                        + spriteSheet.getWidth() + "x" + spriteSheet.getHeight()
+                        + " (" + frameCount + " frames, stride " + stride + ")");
                 return;
             }
-            
-            int rows = spriteSheet.getHeight() >= SPRITE_SIZE ?
-                    ((spriteSheet.getHeight() - SPRITE_SIZE) / SPRITE_STRIDE) + 1 : 0;
-            int cols = spriteSheet.getWidth() >= SPRITE_SIZE ?
-                    ((spriteSheet.getWidth() - SPRITE_SIZE) / SPRITE_STRIDE) + 1 : 0;
+
+            int rows = spriteSheet.getHeight() >= SPRITE_SIZE
+                    ? ((spriteSheet.getHeight() - SPRITE_SIZE) / SPRITE_STRIDE) + 1
+                    : 0;
+            int cols = spriteSheet.getWidth() >= SPRITE_SIZE
+                    ? ((spriteSheet.getWidth() - SPRITE_SIZE) / SPRITE_STRIDE) + 1
+                    : 0;
 
             sprites = new BufferedImage[rows][cols];
 
@@ -55,12 +60,10 @@ public class SpriteManager {
                     int sourceX = col * SPRITE_STRIDE;
                     int sourceY = row * SPRITE_STRIDE;
 
-                    if (sourceX + SPRITE_SIZE <= spriteSheet.getWidth() &&
-                        sourceY + SPRITE_SIZE <= spriteSheet.getHeight()) {
-                        
+                    if (sourceX + SPRITE_SIZE <= spriteSheet.getWidth()
+                            && sourceY + SPRITE_SIZE <= spriteSheet.getHeight()) {
                         BufferedImage rawSprite = spriteSheet.getSubimage(
-                            sourceX, sourceY, SPRITE_SIZE, SPRITE_SIZE
-                        );
+                                sourceX, sourceY, SPRITE_SIZE, SPRITE_SIZE);
                         sprites[row][col] = makeTransparent(rawSprite);
                     }
                 }
@@ -73,30 +76,37 @@ public class SpriteManager {
         }
     }
 
-    /**
-     * Zamienia różowy kolor tła (#FF00FF) na przezroczysty (alpha=0)
-     */
+    private BufferedImage cropWeaponFrame(BufferedImage src) {
+        // Broń ma osobny, niski arkusz klatek. Na części klatek przy lewej krawędzi
+        // potrafi zostać jasna linia separatora, więc usuwamy kilka pikseli źródła
+        // już na etapie ładowania, dla każdej klatki animacji.
+        int cropLeft = Math.min(4, src.getWidth() - 1);
+        int cropRight = Math.min(2, src.getWidth() - cropLeft - 1);
+        int cropTop = 0;
+        int cropBottom = 0;
+
+        int width = Math.max(1, src.getWidth() - cropLeft - cropRight);
+        int height = Math.max(1, src.getHeight() - cropTop - cropBottom);
+
+        return src.getSubimage(cropLeft, cropTop, width, height);
+    }
+
     private BufferedImage makeTransparent(BufferedImage src) {
         BufferedImage dst = new BufferedImage(
-            src.getWidth(), src.getHeight(), 
-            BufferedImage.TYPE_INT_ARGB
-        );
+                src.getWidth(), src.getHeight(),
+                BufferedImage.TYPE_INT_ARGB);
 
-        int transparentCount = 0;
         for (int y = 0; y < src.getHeight(); y++) {
             for (int x = 0; x < src.getWidth(); x++) {
                 int argb = src.getRGB(x, y);
                 int rgb = argb & 0x00FFFFFF;
                 int alpha = (argb >> 24) & 0xFF;
 
-                // Jeśli pixel już ma przezroczystość (alpha < 200), pomiń
                 if (alpha < 200) {
-                    dst.setRGB(x, y, argb);  // Pozostaw takim jakim jest
+                    dst.setRGB(x, y, argb);
                 } else if (isMagenta(rgb)) {
-                    dst.setRGB(x, y, 0x00000000); // Uczyń w pełni przezroczystym
-                    transparentCount++;
+                    dst.setRGB(x, y, 0x00000000);
                 } else {
-                    // Zachowaj normalnie
                     dst.setRGB(x, y, argb);
                 }
             }
@@ -109,23 +119,14 @@ public class SpriteManager {
         int g = (rgb >> 8) & 0xFF;
         int b = rgb & 0xFF;
 
-        // Detekcja TYLKO magenty (#FF00FF i #980088):
-        // - Zielony kanał ZAWSZE prawie 0
-        // - Red i Blue wysokie i PODOBNE (mała różnica)
-        // - Zignoruj ciemne szare/czarne pixele
-        
-        if (g >= 30) return false;  // Zielony zbyt wysoki - to nie magenta
-        
-        // Dla jasnej magenty: R,B > 200
+        if (g >= 30) return false;
         if (r > 200 && b > 200) return true;
-        
-        // Dla ciemnej magenty #980088: R≈152, B≈136 (różnica ~16)
-        // ale upewnij się że to magenta a nie czarny shadow
+
         if (r >= 130 && b >= 120 && r <= 180 && b <= 160) {
             int colorDiff = Math.abs(r - b);
-            return colorDiff <= 30;  // Ścisłe podobieństwo R i B
+            return colorDiff <= 30;
         }
-        
+
         return false;
     }
 
@@ -139,11 +140,16 @@ public class SpriteManager {
     public int getSpritePixel(int row, int col, int x, int y) {
         BufferedImage sprite = getSprite(row, col);
         if (sprite == null) return 0;
-        x = Math.floorMod(x, SPRITE_SIZE);
-        y = Math.floorMod(y, SPRITE_SIZE);
+        x = Math.floorMod(x, sprite.getWidth());
+        y = Math.floorMod(y, sprite.getHeight());
         return sprite.getRGB(x, y);
     }
 
-    public int getRows() { return sprites.length; }
-    public int getCols() { return sprites[0].length; }
+    public int getRows() {
+        return sprites.length;
+    }
+
+    public int getCols() {
+        return sprites.length == 0 ? 0 : sprites[0].length;
+    }
 }

@@ -9,10 +9,16 @@ public class SpriteAnimation {
     private int frameDelay = 100;
     private long lastUpdate = 0;
     private boolean isFinished = false;
+    private final boolean loop;
 
     public SpriteAnimation(List<int[]> frames, int frameDelayMs) {
+        this(frames, frameDelayMs, false);
+    }
+
+    public SpriteAnimation(List<int[]> frames, int frameDelayMs, boolean loop) {
         this.frames = frames;
         this.frameDelay = frameDelayMs;
+        this.loop = loop;
     }
 
     public BufferedImage getCurrentFrame(SpriteManager manager) {
@@ -22,14 +28,27 @@ public class SpriteAnimation {
     }
 
     public void update(long now) {
-        if (isFinished) return; // Stay on last frame
-        
+        if (frames.isEmpty()) return;
+        if (frameDelay <= 0) return;
+        if (isFinished && !loop) return;
+
+        if (lastUpdate == 0) {
+            lastUpdate = now;
+            return;
+        }
+
         if (now - lastUpdate >= frameDelay) {
             currentFrame++;
+
             if (currentFrame >= frames.size()) {
-                currentFrame = frames.size() - 1;
-                isFinished = true;
+                if (loop) {
+                    currentFrame = 0;
+                } else {
+                    currentFrame = frames.size() - 1;
+                    isFinished = true;
+                }
             }
+
             lastUpdate = now;
         }
     }
@@ -40,7 +59,15 @@ public class SpriteAnimation {
         isFinished = false;
     }
 
-    public void setFrameDelay(int ms) { this.frameDelay = ms; }
-    public int getFrameCount() { return frames.size(); }
-    public boolean isFinished() { return isFinished; }
+    public void setFrameDelay(int ms) {
+        this.frameDelay = ms;
+    }
+
+    public int getFrameCount() {
+        return frames.size();
+    }
+
+    public boolean isFinished() {
+        return isFinished;
+    }
 }

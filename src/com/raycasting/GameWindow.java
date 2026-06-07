@@ -1,9 +1,14 @@
 package com.raycasting;
 
+import java.awt.AWTException;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Robot;
+import java.awt.Toolkit;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
@@ -31,72 +36,19 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     private Raycaster raycaster;
     private SpriteManager spriteManager;
     private SpriteManager weaponManager;
-    private MovingSprite guard;
+    private TextureManager textureManager;
+    private SoundManager soundManager;
 
     private boolean[] keys = new boolean[256];
-    private int mouseX;
-    private int lastMouseX = -1;
+
+    private Robot mouseRobot;
+    private boolean mouseCaptured = false;
+    private boolean recenteringMouse = false;
+
+    // Czułość myszy. Zwiększ, jeśli obrót jest za wolny; zmniejsz, jeśli za szybki.
+    private static final double MOUSE_SENSITIVITY = 0.0045;
 
     public GameWindow() {
-        map = new Map();
-        player = new Player(2.5, 2.5);
-
-        // POPRAWNIE ŚCIEŻKI
-        TextureManager textureManager = new TextureManager("com/raycasting/textures/wolfwall1.png");
-        
-        // ========== ZAŁADUJ SPRITE'Y NPC ==========
-        // spriteManager = new SpriteManager("/com/raycasting/sprites/[NAZWA].PNG");
-        // Zmień [NAZWA] na plik sprite'u strażnika
-        // Dostępne NPC: Guard.png, Guardian.png [dodaj własne]
-        spriteManager = new SpriteManager("/com/raycasting/sprites/Guard.png");
-        
-        // ========== ZAŁADUJ SPRITE'Y BRONI ==========
-        // weaponManager = new SpriteManager("/com/raycasting/sprites/[NAZWA].PNG");
-        // Zmień [NAZWA] na plik sprite'u broni
-        // Dostępne broń: pistol.PNG, knife.png [dodaj własne]
-        weaponManager = new SpriteManager("/com/raycasting/sprites/pistol.PNG");
-
-        raycaster = new Raycaster(map, player, textureManager, spriteManager);
-
-        SpriteConfigurator config = new SpriteConfigurator(spriteManager);
-        SpriteEntity guardEntity = config.createGuard();
-
-        // ========== DODAJ STRAŻNIKÓW ==========
-        // Punkt startowy strażnika: (x, y)
-        guard = new MovingSprite(5.5, 5.5, guardEntity);
-        
-        // TRASA PATROLU - wyznaczają ścieżkę strażnika
-        // Każdy punkt {x, y} to pozycja, którą odwiedzi strażnik
-        // DODAJ WIĘCEJ STRAŻNIKÓW: duplikuj poniższe linie z innymi (x,y) i trasami
-        double[][] patrolRoute = {
-            {5.5, 5.5},
-            {8.5, 5.5},
-            {8.5, 8.5},
-            {5.5, 8.5},
-            {5.5, 5.5}
-        };
-        guard.setPatrolRoute(patrolRoute);
-        guard.speed = 0.02;
-
-        raycaster.addMovingSprite(guard);
-
-        // ========== KONFIGURACJA BRONI ==========
-        // Załaduj broń gracza (pistolet)
-        // Aby zmienić na inną broń: zmień pistol.PNG na knife.png, shotgun.png itd
-        // 
-        // Dostępne broń:
-        //   - pistol.PNG: 326x62 (5 klatek), 25 dmg, cooldown 300ms
-        //   - knife.png: [dodaj swoją broń]
-        //   - shotgun.png: [dodaj swoją broń]
-        //
-        // Aby przełączać się między bronią w grze:
-        //   1. Załaduj dodatkowe sprite'y tutaj
-        //   2. Zmień w SpriteConfigurator: createWeaponKnife() zamiast createWeaponPistol()
-        //   3. Nastaw przyciski: np KEY_1 = pistolet, KEY_2 = nóż, KEY_3 = shotgun
-        //
-        SpriteEntity pistolEntity = config.createWeaponPistol();
-        raycaster.setWeaponSprite(pistolEntity, weaponManager);
-
         setPreferredSize(new Dimension(WIDTH, HEIGHT));
         setBackground(Color.BLACK);
         setFocusable(true);
@@ -109,17 +61,160 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
         buffer = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
         bufferGraphics = buffer.createGraphics();
 
+        initMouseCapture();
+
+        loadManagers();
+        resetGame();
+
         System.out.println("=== Java Raycasting Project ===");
-        System.out.println("WASD - przemieszanie sie");
-        System.out.println("Strzalki / Mysz - rotacja widoku");
-        System.out.println("SPACE - strzal z pistoletu");
-        System.out.println("LPM - alternatywnie strzal");
+        System.out.println("WASD - przemieszczanie się");
+        System.out.println("Strzałki / Mysz - rotacja widoku");
+        System.out.println("SPACE - strzał z pistoletu");
+        System.out.println("LPM - alternatywnie strzał");
         System.out.println("TAB - przełącz tryb widoku");
         System.out.println("1 - TOP_DOWN_VIEW");
         System.out.println("2 - TEXTURED_3D");
-        System.out.println("ESC - wyjscie");
-        System.out.println("Strażnicy poruszają się wobec gracza i strzelają!");
-        System.out.println("Zabit wszystkich strażników aby wygrać!");
+        System.out.println("R - restart po wygranej/przegranej");
+        System.out.println("ESC - wyjście");
+    }
+
+    private void initMouseCapture() {
+        try {
+            mouseRobot = new Robot();
+        } catch (AWTException e) {
+            mouseRobot = null;
+            System.out.println("Nie udało się włączyć trybu przechwytywania myszy. Obrót będzie działał klasycznie.");
+        }
+    }
+
+    private void captureMouse() {
+        if (mouseRobot == null) {
+            return;
+        }
+
+        mouseCaptured = true;
+        setCursor(createHiddenCursor());
+        recenterMouse();
+    }
+
+    private void releaseMouse() {
+        mouseCaptured = false;
+        recenteringMouse = false;
+        setCursor(Cursor.getDefaultCursor());
+    }
+
+    private Cursor createHiddenCursor() {
+        BufferedImage transparentCursorImage = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        return Toolkit.getDefaultToolkit().createCustomCursor(
+                transparentCursorImage,
+                new Point(0, 0),
+                "hidden-cursor"
+        );
+    }
+
+    private void recenterMouse() {
+        if (mouseRobot == null || !isShowing()) {
+            return;
+        }
+
+        Point screenLocation = getLocationOnScreen();
+        int centerX = screenLocation.x + getWidth() / 2;
+        int centerY = screenLocation.y + getHeight() / 2;
+
+        recenteringMouse = true;
+        mouseRobot.mouseMove(centerX, centerY);
+    }
+
+    private void loadManagers() {
+        textureManager = new TextureManager("com/raycasting/textures/wolfwall1.png");
+        spriteManager = new SpriteManager("/com/raycasting/sprites/Guard.png");
+        weaponManager = new SpriteManager("/com/raycasting/sprites/pistol.PNG");
+        soundManager = new SoundManager();
+    }
+
+    private void resetGame() {
+        map = new Map();
+
+        // Start na dole mapy, lekko skierowany w stronę środka poziomu.
+        player = new Player(2.5, 22.5);
+        player.setAngle(Math.PI * 1.75);
+
+        raycaster = new Raycaster(map, player, textureManager, spriteManager);
+        raycaster.setSoundManager(soundManager);
+        soundManager.startBackgroundMusic();
+
+        SpriteConfigurator config = new SpriteConfigurator(spriteManager);
+        SpriteEntity pistolEntity = config.createWeaponPistol();
+        raycaster.setWeaponSprite(pistolEntity, weaponManager);
+
+        addGuards(config);
+
+        Arrays.fill(keys, false);
+
+        System.out.println("Nowa gra rozpoczęta.");
+    }
+
+    private void addGuards(SpriteConfigurator config) {
+        // Strażnicy są rozmieszczeni siatką po całej mapie, ale każdy spawn jest
+        // przesuwany do najbliższego pustego pola 0. Dzięki temu żaden guard nie
+        // powinien trafić do ściany i blokować ukończenia gry.
+        int[][] preferredCells = {
+            {4, 3}, {10, 3}, {16, 3}, {22, 3}, {28, 3},
+            {4, 8}, {10, 8}, {16, 8}, {22, 8}, {28, 8},
+            {4, 13}, {10, 13}, {16, 13}, {22, 13}, {28, 13},
+            {4, 18}, {10, 18}, {16, 18}, {22, 18}, {28, 18}
+        };
+
+        for (int[] cell : preferredCells) {
+            int[] emptyCell = findNearestEmptyCell(cell[0], cell[1]);
+
+            if (emptyCell == null) {
+                System.out.println("Pominąłem strażnika przy " + cell[0] + "/" + cell[1] + " - brak pustego pola.");
+                continue;
+            }
+
+            double guardX = emptyCell[0] + 0.5;
+            double guardY = emptyCell[1] + 0.5;
+
+            // Nie stawiamy strażnika bezpośrednio przy starcie gracza.
+            if (Math.hypot(guardX - player.getX(), guardY - player.getY()) < 4.0) {
+                continue;
+            }
+
+            MovingSprite guard = new MovingSprite(guardX, guardY, config.createGuard());
+            guard.speed = 0.018;
+            raycaster.addMovingSprite(guard);
+        }
+    }
+
+    private int[] findNearestEmptyCell(int startX, int startY) {
+        if (isEmptyCell(startX, startY)) {
+            return new int[]{startX, startY};
+        }
+
+        for (int radius = 1; radius <= 4; radius++) {
+            for (int y = startY - radius; y <= startY + radius; y++) {
+                for (int x = startX - radius; x <= startX + radius; x++) {
+                    if (Math.abs(x - startX) != radius && Math.abs(y - startY) != radius) {
+                        continue;
+                    }
+
+                    if (isEmptyCell(x, y)) {
+                        return new int[]{x, y};
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private boolean isEmptyCell(int x, int y) {
+        return x > 0
+                && x < map.getWidth() - 1
+                && y > 0
+                && y < map.getHeight() - 1
+                && map.getCell(x, y) == 0;
     }
 
     public void start() {
@@ -136,9 +231,14 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
 
     public void stop() {
         running = false;
+        if (soundManager != null) {
+            soundManager.stopAllMusic();
+        }
 
         try {
-            gameThread.join();
+            if (gameThread != null) {
+                gameThread.join();
+            }
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -169,6 +269,10 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     }
 
     private void update() {
+        if (raycaster != null && raycaster.isGameOver()) {
+            return;
+        }
+
         handleKeyboardInput();
         handleMouseInput();
     }
@@ -237,21 +341,9 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     }
 
     private void handleMouseInput() {
-        if (!hasFocus()) {
-            lastMouseX = -1;
-            return;
-        }
-
-        if (lastMouseX != -1) {
-            int deltaX = mouseX - lastMouseX;
-
-            if (deltaX != 0) {
-                double rotation = deltaX * 0.005;
-                player.rotateBy(rotation);
-            }
-        }
-
-        lastMouseX = mouseX;
+        // Obrót myszy obsługujemy bezpośrednio w mouseMoved().
+        // Dzięki temu po przechwyceniu kursora można obracać się bez końca,
+        // bo kursor jest automatycznie zawracany do środka okna.
     }
 
     private void render() {
@@ -280,7 +372,15 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
 
         switch (keyCode) {
             case KeyEvent.VK_SPACE:
-                raycaster.shoot();
+                if (!raycaster.isGameOver()) {
+                    raycaster.shoot();
+                }
+                break;
+
+            case KeyEvent.VK_R:
+                if (raycaster.isGameOver()) {
+                    resetGame();
+                }
                 break;
 
             case KeyEvent.VK_TAB:
@@ -288,6 +388,7 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
                 break;
 
             case KeyEvent.VK_ESCAPE:
+                releaseMouse();
                 running = false;
                 System.exit(0);
                 break;
@@ -324,18 +425,41 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
 
     @Override
     public void mouseMoved(MouseEvent e) {
-        mouseX = e.getX();
-    }
+        if (!mouseCaptured || mouseRobot == null || !hasFocus()) {
+            return;
+        }
 
-    @Override
-    public void mouseClicked(MouseEvent e) {
-        if (e.getButton() == MouseEvent.BUTTON1) {
-            raycaster.shoot();
+        int centerX = getWidth() / 2;
+
+        if (recenteringMouse) {
+            // Ignorujemy event wygenerowany przez robot.mouseMove().
+            // Bez tego postać czasem dostawałaby sztuczny obrót po zawróceniu kursora.
+            if (Math.abs(e.getX() - centerX) <= 2) {
+                recenteringMouse = false;
+            }
+            return;
+        }
+
+        int deltaX = e.getX() - centerX;
+
+        if (deltaX != 0) {
+            player.rotateBy(deltaX * MOUSE_SENSITIVITY);
+            recenterMouse();
         }
     }
 
     @Override
-    public void mousePressed(MouseEvent e) {}
+    public void mouseClicked(MouseEvent e) {}
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+        requestFocusInWindow();
+        captureMouse();
+
+        if (e.getButton() == MouseEvent.BUTTON1 && !raycaster.isGameOver()) {
+            raycaster.shoot();
+        }
+    }
 
     @Override
     public void mouseReleased(MouseEvent e) {}
@@ -348,14 +472,16 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
 
     @Override
     public void focusGained(FocusEvent e) {
-        lastMouseX = -1;
         Arrays.fill(keys, false);
+        if (mouseCaptured) {
+            recenterMouse();
+        }
     }
 
     @Override
     public void focusLost(FocusEvent e) {
-        lastMouseX = -1;
         Arrays.fill(keys, false);
+        releaseMouse();
     }
 
     private void cycleGameState() {

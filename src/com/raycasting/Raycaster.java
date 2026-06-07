@@ -15,17 +15,19 @@ public class Raycaster {
     private TextureManager textureManager;
     private SpriteManager spriteManager;
     private SpriteManager weaponManager;
+    private SoundManager soundManager;
     
     private List<MovingSprite> movingSprites = new ArrayList<>();
     private SpriteEntity weaponSprite;
     private boolean isShooting = false;
     private long shootEndTime = 0;
     private boolean gameOver = false;
+    private boolean playerWon = false;
     private String gameOverReason = "";
 
     private static final int HUD_HEIGHT = 96;
-    private static final int WEAPON_SIZE = 96;
-    private static final double GUARD_SHOOT_RANGE = 7.0;
+    private static final int WEAPON_SIZE = 126;
+    private static final double GUARD_SIGHT_RANGE = 4.5;
     private static final int GUARD_DAMAGE = 10;
     private static final int PLAYER_DAMAGE = 25;
 
@@ -70,11 +72,18 @@ public class Raycaster {
         this.weaponManager = manager;
     }
 
+    public void setSoundManager(SoundManager soundManager) {
+        this.soundManager = soundManager;
+    }
+
     public void shoot() {
         if (!isShooting && weaponSprite != null && player.isAlive()) {
             isShooting = true;
             player.recordShot();
             weaponSprite.playAnimation("shoot");
+            if (soundManager != null) {
+                soundManager.playPlayerShot();
+            }
             shootEndTime = System.currentTimeMillis() + 200;
             
             // Check if we hit a guard
@@ -93,7 +102,9 @@ public class Raycaster {
                 while (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
                 
                 // If within a small angle (±15 degrees) and distance is reasonable
-                if (angleDiff < Math.PI / 12 && dist < 10.0) {
+                if (angleDiff < Math.PI / 12
+                        && dist < 10.0
+                        && hasLineOfSight(player.getX(), player.getY(), guard.x, guard.y)) {
                     guard.takeDamage(PLAYER_DAMAGE);
                     System.out.println("Strzeliłeś w strażnika! HP: " + guard.getHP());
                     if (!guard.isAlive()) {
@@ -120,11 +131,15 @@ public class Raycaster {
             if (dist > 0) {
                 // Check line of sight
                 if (hasLineOfSight(guard.x, guard.y, player.getX(), player.getY())) {
+                    if (soundManager != null) {
+                        soundManager.playGuardShot();
+                    }
                     player.takeDamage(GUARD_DAMAGE);
                     System.out.println("Ouch! Strażnik strzelił! Życie: " + player.getHP());
                     if (!player.isAlive()) {
                         gameOver = true;
                         gameOverReason = "WYELIMINOWANY PRZEZ STRAŻNIKA";
+                        playerWon = false;
                     }
                 }
             }
@@ -181,7 +196,17 @@ public class Raycaster {
     }
 
     public void draw(BufferedImage buffer) {
+        updateMusicState();
+
         if (gameOver) {
+            drawGameOver(buffer);
+            return;
+        }
+
+        if (!movingSprites.isEmpty() && countAliveSprites() == 0) {
+            gameOver = true;
+            playerWon = true;
+            gameOverReason = "YOU PURGE NAZIS!";
             drawGameOver(buffer);
             return;
         }
@@ -189,6 +214,7 @@ public class Raycaster {
         if (!player.isAlive()) {
             gameOver = true;
             gameOverReason = "ZABITY";
+            playerWon = false;
             drawGameOver(buffer);
             return;
         }
@@ -205,6 +231,22 @@ public class Raycaster {
         drawWeapon(buffer);
     }
 
+    private void updateMusicState() {
+        if (soundManager == null) return;
+
+        if (!player.isAlive() || gameOver) {
+            soundManager.stopLowHealthMusic();
+            return;
+        }
+
+        if (player.getHP() < 50) {
+            soundManager.startLowHealthMusic();
+        } else {
+            soundManager.stopLowHealthMusic();
+            soundManager.startBackgroundMusic();
+        }
+    }
+
     private void drawGameOver(BufferedImage buffer) {
         clearBuffer(buffer);
         Graphics2D g = buffer.createGraphics();
@@ -212,22 +254,25 @@ public class Raycaster {
         g.setColor(new Color(0, 0, 0, 200));
         g.fillRect(0, 0, buffer.getWidth(), buffer.getHeight());
         
-        g.setColor(Color.RED);
-        g.setFont(new Font("Arial", Font.BOLD, 60));
-        g.drawString("GAME OVER", buffer.getWidth() / 2 - 200, buffer.getHeight() / 2 - 50);
-        
+        g.setColor(playerWon ? Color.GREEN : Color.RED);
+        g.setFont(new Font("Arial", Font.BOLD, 56));
+        String title = playerWon ? "YOU PURGE NAZIS!" : "GAME OVER";
+        g.drawString(title, buffer.getWidth() / 2 - 260, buffer.getHeight() / 2 - 60);
+
         g.setColor(Color.WHITE);
-        g.setFont(new Font("Arial", Font.PLAIN, 30));
-        g.drawString(gameOverReason, buffer.getWidth() / 2 - 150, buffer.getHeight() / 2 + 30);
-        
+        g.setFont(new Font("Arial", Font.PLAIN, 28));
+        g.drawString(gameOverReason, buffer.getWidth() / 2 - 180, buffer.getHeight() / 2 + 10);
+
         g.setFont(new Font("Arial", Font.PLAIN, 20));
-        g.drawString("Strażnicy pozostali: " + countAliveSprutes(), 
-            buffer.getWidth() / 2 - 150, buffer.getHeight() / 2 + 80);
+        g.drawString("Strażnicy pozostali: " + countAliveSprites(),
+            buffer.getWidth() / 2 - 150, buffer.getHeight() / 2 + 55);
+        g.drawString("Naciśnij R, aby zacząć od nowa",
+            buffer.getWidth() / 2 - 170, buffer.getHeight() / 2 + 90);
         
         g.dispose();
     }
 
-    private int countAliveSprutes() {
+    private int countAliveSprites() {
         int count = 0;
         for (MovingSprite sprite : movingSprites) {
             if (sprite.isAlive()) count++;
@@ -337,9 +382,9 @@ public class Raycaster {
             renderSolidFloor(pixels, screenWidth, viewHeight);
         }
 
-        renderWalls(pixels, screenWidth, viewHeight);
-        
-        drawSprites(pixels, screenWidth, viewHeight);
+        double[] zBuffer = renderWalls(pixels, screenWidth, viewHeight);
+
+        drawSprites(pixels, screenWidth, viewHeight, zBuffer);
     }
 
     private void renderSolidCeiling(int[] pixels, int screenWidth, int viewHeight) {
@@ -471,7 +516,7 @@ public class Raycaster {
         }
     }
 
-    private void renderWalls(int[] pixels, int screenWidth, int viewHeight) {
+    private double[] renderWalls(int[] pixels, int screenWidth, int viewHeight) {
         double playerX = player.getX();
         double playerY = player.getY();
 
@@ -482,6 +527,8 @@ public class Raycaster {
         double planeX = -dirY * planeLength;
         double planeY = dirX * planeLength;
 
+        double[] zBuffer = new double[screenWidth];
+
         for (int screenX = 0; screenX < screenWidth; screenX++) {
             double cameraX = 2.0 * screenX / screenWidth - 1.0;
 
@@ -489,6 +536,7 @@ public class Raycaster {
             double rayDirY = dirY + planeY * cameraX;
 
             RayHit hit = castRay(playerX, playerY, rayDirX, rayDirY);
+            zBuffer[screenX] = hit.distance;
 
             drawWallColumn(
                     pixels,
@@ -499,6 +547,8 @@ public class Raycaster {
                     rayDirX,
                     rayDirY);
         }
+
+        return zBuffer;
     }
 
     private RayHit castRay(double playerX, double playerY, double rayDirX, double rayDirY) {
@@ -619,7 +669,7 @@ public class Raycaster {
         }
     }
 
-    private void drawSprites(int[] pixels, int screenWidth, int viewHeight) {
+    private void drawSprites(int[] pixels, int screenWidth, int viewHeight, double[] zBuffer) {
         if (spriteManager == null || movingSprites.isEmpty()) return;
 
         double playerX = player.getX();
@@ -628,15 +678,25 @@ public class Raycaster {
 
         long now = System.currentTimeMillis();
         for (MovingSprite sprite : movingSprites) {
-            // Update guard AI to chase player
-            sprite.updateToChasePlayer(now, map, player);
-            
-            // Guard shooting logic - strzelaj gdy jest w bliskiej odległości
+            if (!sprite.isAlive()) {
+                sprite.update(now, map);
+                continue;
+            }
+
             double distToPlayer = sprite.getDistanceTo(playerX, playerY);
-            if (distToPlayer <= sprite.STOP_DISTANCE + 0.5 && sprite.isAlive()) {
-                if (sprite.canShoot()) {
+            boolean canSeePlayer = distToPlayer <= GUARD_SIGHT_RANGE
+                    && hasLineOfSight(sprite.x, sprite.y, playerX, playerY);
+
+            if (canSeePlayer) {
+                sprite.updateToChasePlayer(now, map, player);
+
+                if (distToPlayer <= sprite.STOP_DISTANCE + 0.5 && sprite.canShoot()) {
                     shootAtPlayer(sprite);
                 }
+            } else {
+                // Gdy gracz jest daleko albo za ścianą, strażnik wraca do patrolu / losowego ruchu.
+                sprite.updateRandomWander(now, map, player);
+                sprite.stopAttack();
             }
         }
 
@@ -688,14 +748,20 @@ public class Raycaster {
                 int textureX = (int) ((screenX - drawStartX) * spriteImg.getWidth() / (double) spriteWidth);
                 textureX = clamp(textureX, 0, spriteImg.getWidth() - 1);
 
+                if (zBuffer != null && screenX >= 0 && screenX < zBuffer.length && transformY >= zBuffer[screenX]) {
+                    continue;
+                }
+
                 for (int screenY = clipStartY; screenY < clipEndY; screenY++) {
                     int textureY = (int) ((screenY - drawStartY) * spriteImg.getHeight() / (double) spriteHeight);
                     textureY = clamp(textureY, 0, spriteImg.getHeight() - 1);
 
                     int color = spriteImg.getRGB(textureX, textureY);
                     int alpha = (color >> 24) & 0xFF;
-                    
-                    if (alpha > 128 || (color & 0x00FFFFFF) != 0xFFFF00FF) {
+
+                    // Bardzo ważne: rysujemy tylko nieprzezroczyste piksele.
+                    // Poprzedni warunek z || przepuszczał przezroczyste piksele i robił z nich czarne tło.
+                    if (alpha > 128) {
                         color = applyLight(color, light);
                         pixels[screenY * screenWidth + screenX] = color;
                     }
@@ -718,17 +784,44 @@ public class Raycaster {
         
         if (weaponImg != null) {
             Graphics2D g = buffer.createGraphics();
-            // Lepsza jakość skalowania - unika linii artefaktów
-            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, 
-                              java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-            
-            // Rysuj broń w środku na dole ekranu
-            int weaponSize = 100;
-            int weaponX = (buffer.getWidth() - weaponSize) / 2;  // Środek
-            int weaponY = buffer.getHeight() - weaponSize - HUD_HEIGHT - 10;  // Dół, nad HUD
-            
-            // Skaluj do weaponSize
-            g.drawImage(weaponImg, weaponX, weaponY, weaponSize, weaponSize, null);
+            // NEAREST_NEIGHBOR nie miesza koloru krawędzi z przezroczystością,
+            // a mocniejsze przycięcie lewej strony usuwa biały 1px pasek ze sprite'a broni.
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                              java.awt.RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+
+            int weaponSize = WEAPON_SIZE + 12;
+            int weaponX = (buffer.getWidth() - weaponSize) / 2;
+
+            // REGULACJA POZYCJI BRONI:
+            // - mniejsza wartość WEAPON_VERTICAL_OFFSET podnosi broń,
+            // - większa wartość WEAPON_VERTICAL_OFFSET opuszcza broń.
+            // Przykłady: -8 = wyżej, 0 = neutralnie, 12 = niżej.
+            int WEAPON_VERTICAL_OFFSET = -6;
+            int weaponY = buffer.getHeight() - weaponSize - HUD_HEIGHT + WEAPON_VERTICAL_OFFSET;
+
+            // Przycinamy każdą klatkę animacji, nie tylko idle.
+            // Lewa krawędź ma większy crop, bo tam pojawiał się biały pasek z arkusza.
+            int cropLeft = Math.min(16, Math.max(0, weaponImg.getWidth() / 4));
+            int cropRight = Math.min(3, Math.max(0, weaponImg.getWidth() / 12));
+            int cropTop = 1;
+            int cropBottom = 1;
+            int srcX1 = cropLeft;
+            int srcY1 = cropTop;
+            int srcX2 = Math.max(srcX1 + 1, weaponImg.getWidth() - cropRight);
+            int srcY2 = Math.max(srcY1 + 1, weaponImg.getHeight() - cropBottom);
+
+            g.drawImage(
+                weaponImg,
+                weaponX,
+                weaponY,
+                weaponX + weaponSize,
+                weaponY + weaponSize,
+                srcX1,
+                srcY1,
+                srcX2,
+                srcY2,
+                null
+            );
             
             g.dispose();
         }
