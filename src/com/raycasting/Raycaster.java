@@ -24,10 +24,11 @@ public class Raycaster {
     private boolean gameOver = false;
     private boolean playerWon = false;
     private String gameOverReason = "";
+    private long damageFlashEndTime = 0;
 
     private static final int HUD_HEIGHT = 96;
     private static final int WEAPON_SIZE = 126;
-    private static final double GUARD_SIGHT_RANGE = 4.5;
+    private static final double GUARD_SIGHT_RANGE = 3.8;
     private static final int GUARD_DAMAGE = 10;
     private static final int PLAYER_DAMAGE = 25;
 
@@ -120,29 +121,37 @@ public class Raycaster {
 
     public void shootAtPlayer(MovingSprite guard) {
         if (guard.canShoot() && guard.isAlive() && player.isAlive()) {
+            // Tu tylko rozpoczynamy animację ataku.
+            // Obrażenia wejdą dopiero później, na 3. klatce animacji attack.
             guard.recordShot();
-            guard.startAttack();
-            
-            // Raycast from guard to player
-            double dx = player.getX() - guard.x;
-            double dy = player.getY() - guard.y;
-            double dist = Math.hypot(dx, dy);
-            
-            if (dist > 0) {
-                // Check line of sight
-                if (hasLineOfSight(guard.x, guard.y, player.getX(), player.getY())) {
-                    if (soundManager != null) {
-                        soundManager.playGuardShot();
-                    }
-                    player.takeDamage(GUARD_DAMAGE);
-                    System.out.println("Ouch! Strażnik strzelił! Życie: " + player.getHP());
-                    if (!player.isAlive()) {
-                        gameOver = true;
-                        gameOverReason = "WYELIMINOWANY PRZEZ STRAŻNIKA";
-                        playerWon = false;
-                    }
-                }
-            }
+            guard.restartAttackAnimation();
+        }
+    }
+
+    private void applyGuardShotDamage(MovingSprite guard) {
+        if (!guard.isAlive() || !player.isAlive()) {
+            return;
+        }
+
+        if (!hasLineOfSight(guard.x, guard.y, player.getX(), player.getY())) {
+            guard.markAttackDamageDealt();
+            return;
+        }
+
+        guard.markAttackDamageDealt();
+
+        if (soundManager != null) {
+            soundManager.playGuardShot();
+        }
+
+        player.takeDamage(GUARD_DAMAGE);
+        damageFlashEndTime = System.currentTimeMillis() + 180;
+
+        System.out.println("Ouch! Strażnik strzelił! Życie: " + player.getHP());
+        if (!player.isAlive()) {
+            gameOver = true;
+            gameOverReason = "WYELIMINOWANY PRZEZ STRAŻNIKA";
+            playerWon = false;
         }
     }
 
@@ -229,6 +238,7 @@ public class Raycaster {
 
         drawHud(buffer);
         drawWeapon(buffer);
+        drawDamageFlash(buffer);
     }
 
     private void updateMusicState() {
@@ -693,6 +703,10 @@ public class Raycaster {
                 if (distToPlayer <= sprite.STOP_DISTANCE + 0.5 && sprite.canShoot()) {
                     shootAtPlayer(sprite);
                 }
+
+                if (sprite.shouldDealAttackDamageNow()) {
+                    applyGuardShotDamage(sprite);
+                }
             } else {
                 // Gdy gracz jest daleko albo za ścianą, strażnik wraca do patrolu / losowego ruchu.
                 sprite.updateRandomWander(now, map, player);
@@ -851,6 +865,21 @@ public class Raycaster {
         b = (int) (b * light);
 
         return (r << 16) | (g << 8) | b;
+    }
+
+    private void drawDamageFlash(BufferedImage buffer) {
+        long now = System.currentTimeMillis();
+        if (now >= damageFlashEndTime) {
+            return;
+        }
+
+        double progress = (damageFlashEndTime - now) / 180.0;
+        int alpha = (int) (120 * Math.max(0.0, Math.min(1.0, progress)));
+
+        Graphics2D g = buffer.createGraphics();
+        g.setColor(new Color(255, 0, 0, alpha));
+        g.fillRect(0, 0, buffer.getWidth(), buffer.getHeight());
+        g.dispose();
     }
 
     private void drawHud(BufferedImage buffer) {

@@ -22,6 +22,7 @@ public class MovingSprite {
     private static final long SHOOT_COOLDOWN = 1500;
     private static final double ATTACK_RANGE = 8.0;
     private boolean isAttacking = false;
+    private boolean attackDamageDealt = false;
 
     // Dystans zatrzymania - można regulować poniżej
     public double STOP_DISTANCE = 1.5;
@@ -291,16 +292,40 @@ public class MovingSprite {
     public void startAttack() {
         if (!isAttacking) {
             isAttacking = true;
+            attackDamageDealt = false;
             entity.playAnimation("attack");
             currentAnim = "attack";
         }
     }
 
+    public void restartAttackAnimation() {
+        isAttacking = true;
+        attackDamageDealt = false;
+        entity.playAnimation("attack");
+        currentAnim = "attack";
+    }
+
     public void stopAttack() {
         isAttacking = false;
+        attackDamageDealt = false;
     }
 
     public boolean isAttacking() {
         return isAttacking;
+    }
+
+    /**
+     * Obrażenia od strażnika powinny wejść dopiero w momencie strzału,
+     * czyli na 3. klatce animacji attack: indeks 2.
+     */
+    public boolean shouldDealAttackDamageNow() {
+        return isAttacking
+                && !attackDamageDealt
+                && entity.isCurrentAnimation("attack")
+                && entity.getCurrentFrameIndex() >= 2;
+    }
+
+    public void markAttackDamageDealt() {
+        attackDamageDealt = true;
     }
 }

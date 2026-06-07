@@ -67,6 +67,10 @@ public class SpriteAnimation {
         return frames.size();
     }
 
+    public int getCurrentFrameIndex() {
+        return currentFrame;
+    }
+
     public boolean isFinished() {
         return isFinished;
     }

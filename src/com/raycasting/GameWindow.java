@@ -7,6 +7,7 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
+import java.awt.MouseInfo;
 import java.awt.Robot;
 import java.awt.Toolkit;
 import java.awt.event.FocusEvent;
@@ -121,8 +122,8 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
         int centerX = screenLocation.x + getWidth() / 2;
         int centerY = screenLocation.y + getHeight() / 2;
 
-        recenteringMouse = true;
         mouseRobot.mouseMove(centerX, centerY);
+        recenteringMouse = false;
     }
 
     private void loadManagers() {
@@ -183,6 +184,8 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
 
             MovingSprite guard = new MovingSprite(guardX, guardY, config.createGuard());
             guard.speed = 0.018;
+            // Strażnik zatrzymuje się i zaczyna strzelać z ok. 3 pól od gracza.
+            guard.STOP_DISTANCE = 3.0;
             raycaster.addMovingSprite(guard);
         }
     }
@@ -341,9 +344,22 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     }
 
     private void handleMouseInput() {
-        // Obrót myszy obsługujemy bezpośrednio w mouseMoved().
-        // Dzięki temu po przechwyceniu kursora można obracać się bez końca,
-        // bo kursor jest automatycznie zawracany do środka okna.
+        if (!mouseCaptured || mouseRobot == null || !isShowing() || !hasFocus()) {
+            return;
+        }
+
+        Point mousePosition = MouseInfo.getPointerInfo().getLocation();
+        Point screenLocation = getLocationOnScreen();
+
+        int centerX = screenLocation.x + getWidth() / 2;
+        int centerY = screenLocation.y + getHeight() / 2;
+        int deltaX = mousePosition.x - centerX;
+
+        // Mała martwa strefa usuwa mikroruchy po automatycznym zawróceniu kursora.
+        if (Math.abs(deltaX) > 1) {
+            player.rotateBy(deltaX * MOUSE_SENSITIVITY);
+            mouseRobot.mouseMove(centerX, centerY);
+        }
     }
 
     private void render() {
@@ -425,27 +441,9 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
 
     @Override
     public void mouseMoved(MouseEvent e) {
-        if (!mouseCaptured || mouseRobot == null || !hasFocus()) {
-            return;
-        }
-
-        int centerX = getWidth() / 2;
-
-        if (recenteringMouse) {
-            // Ignorujemy event wygenerowany przez robot.mouseMove().
-            // Bez tego postać czasem dostawałaby sztuczny obrót po zawróceniu kursora.
-            if (Math.abs(e.getX() - centerX) <= 2) {
-                recenteringMouse = false;
-            }
-            return;
-        }
-
-        int deltaX = e.getX() - centerX;
-
-        if (deltaX != 0) {
-            player.rotateBy(deltaX * MOUSE_SENSITIVITY);
-            recenterMouse();
-        }
+        // Obrót jest liczony w update() z globalnej pozycji kursora.
+        // To jest stabilniejsze niż poleganie na mouseMoved(), bo Robot generuje
+        // własne eventy i na niektórych systemach Swing potrafi je zgubić.
     }
 
     @Override
@@ -454,6 +452,7 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     @Override
     public void mousePressed(MouseEvent e) {
         requestFocusInWindow();
+        requestFocus();
         captureMouse();
 
         if (e.getButton() == MouseEvent.BUTTON1 && !raycaster.isGameOver()) {
