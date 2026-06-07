@@ -24,15 +24,27 @@ public class MovingSprite {
     private boolean isAttacking = false;
     private boolean attackDamageDealt = false;
 
+    // true = strażnik strzela z dystansu, false = pies gryzie tylko z bliska.
+    private boolean rangedAttacker = true;
+
+    // Manager sprite'ów przypisany do konkretnego przeciwnika.
+    // Dzięki temu w jednej grze mogą być jednocześnie Guard.png i GuardDog.png.
+    private SpriteManager ownSpriteManager;
+
     // Dystans zatrzymania - można regulować poniżej
     public double STOP_DISTANCE = 1.5;
 
     public MovingSprite(double x, double y, SpriteEntity entity) {
+        this(x, y, entity, null);
+    }
+
+    public MovingSprite(double x, double y, SpriteEntity entity, SpriteManager ownSpriteManager) {
         this.x = x;
         this.y = y;
         this.targetX = x;
         this.targetY = y;
         this.entity = entity;
+        this.ownSpriteManager = ownSpriteManager;
     }
 
     public void setPatrolRoute(double[][] points) {
@@ -252,8 +264,21 @@ public class MovingSprite {
         }
     }
 
-    public BufferedImage getCurrentSprite(SpriteManager manager) {
-        return entity.getCurrentSprite(manager);
+    public BufferedImage getCurrentSprite(SpriteManager fallbackManager) {
+        SpriteManager managerToUse = ownSpriteManager != null ? ownSpriteManager : fallbackManager;
+        return entity.getCurrentSprite(managerToUse);
+    }
+
+    public void setOwnSpriteManager(SpriteManager ownSpriteManager) {
+        this.ownSpriteManager = ownSpriteManager;
+    }
+
+    public boolean isRangedAttacker() {
+        return rangedAttacker;
+    }
+
+    public void setRangedAttacker(boolean rangedAttacker) {
+        this.rangedAttacker = rangedAttacker;
     }
 
     public int getHP() {

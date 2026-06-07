@@ -128,29 +128,41 @@ public class Raycaster {
         }
     }
 
-    private void applyGuardShotDamage(MovingSprite guard) {
-        if (!guard.isAlive() || !player.isAlive()) {
+    private void applyEnemyAttackDamage(MovingSprite enemy) {
+        if (!enemy.isAlive() || !player.isAlive()) {
             return;
         }
 
-        if (!hasLineOfSight(guard.x, guard.y, player.getX(), player.getY())) {
-            guard.markAttackDamageDealt();
-            return;
-        }
+        enemy.markAttackDamageDealt();
 
-        guard.markAttackDamageDealt();
+        double distanceToPlayer = enemy.getDistanceTo(player.getX(), player.getY());
 
-        if (soundManager != null) {
-            soundManager.playGuardShot();
+        if (enemy.isRangedAttacker()) {
+            // Strażnik z bronią trafia tylko wtedy, gdy w klatce strzału nadal widzi gracza.
+            if (!hasLineOfSight(enemy.x, enemy.y, player.getX(), player.getY())) {
+                return;
+            }
+
+            if (soundManager != null) {
+                soundManager.playGuardShot();
+            }
+        } else {
+            // GuardDog nie strzela. Zadaje obrażenia tylko, jeśli w klatce ataku
+            // jest bezpośrednio przy graczu.
+            if (distanceToPlayer > enemy.STOP_DISTANCE + 0.25) {
+                return;
+            }
         }
 
         player.takeDamage(GUARD_DAMAGE);
         damageFlashEndTime = System.currentTimeMillis() + 180;
 
-        System.out.println("Ouch! Strażnik strzelił! Życie: " + player.getHP());
+        System.out.println("Ouch! Przeciwnik trafił! Życie: " + player.getHP());
         if (!player.isAlive()) {
             gameOver = true;
-            gameOverReason = "WYELIMINOWANY PRZEZ STRAŻNIKA";
+            gameOverReason = enemy.isRangedAttacker()
+                    ? "WYELIMINOWANY PRZEZ STRAŻNIKA"
+                    : "ZAGRYZIONY PRZEZ PSA";
             playerWon = false;
         }
     }
@@ -368,7 +380,9 @@ public class Raycaster {
         for (MovingSprite sprite : movingSprites) {
             int spriteScreenX = offsetX + (int) (sprite.x * cellSize);
             int spriteScreenY = offsetY + (int) (sprite.y * cellSize);
-            g.setColor(Color.GREEN);
+
+            // Żywi przeciwnicy są zieloni, martwi są czerwoni.
+            g.setColor(sprite.isAlive() ? Color.GREEN : Color.RED);
             g.fillRect(spriteScreenX - 4, spriteScreenY - 4, 8, 8);
         }
 
@@ -700,12 +714,13 @@ public class Raycaster {
             if (canSeePlayer) {
                 sprite.updateToChasePlayer(now, map, player);
 
-                if (distToPlayer <= sprite.STOP_DISTANCE + 0.5 && sprite.canShoot()) {
+                double attackStartMargin = sprite.isRangedAttacker() ? 0.5 : 0.12;
+                if (distToPlayer <= sprite.STOP_DISTANCE + attackStartMargin && sprite.canShoot()) {
                     shootAtPlayer(sprite);
                 }
 
                 if (sprite.shouldDealAttackDamageNow()) {
-                    applyGuardShotDamage(sprite);
+                    applyEnemyAttackDamage(sprite);
                 }
             } else {
                 // Gdy gracz jest daleko albo za ścianą, strażnik wraca do patrolu / losowego ruchu.
@@ -810,7 +825,7 @@ public class Raycaster {
             // - mniejsza wartość WEAPON_VERTICAL_OFFSET podnosi broń,
             // - większa wartość WEAPON_VERTICAL_OFFSET opuszcza broń.
             // Przykłady: -8 = wyżej, 0 = neutralnie, 12 = niżej.
-            int WEAPON_VERTICAL_OFFSET = -6;
+            int WEAPON_VERTICAL_OFFSET = 0;
             int weaponY = buffer.getHeight() - weaponSize - HUD_HEIGHT + WEAPON_VERTICAL_OFFSET;
 
             // Przycinamy każdą klatkę animacji, nie tylko idle.

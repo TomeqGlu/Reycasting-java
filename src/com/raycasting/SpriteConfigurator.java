@@ -67,6 +67,74 @@ public class SpriteConfigurator {
         return guard;
     }
 
+
+
+    public SpriteEntity createGuardDog() {
+        SpriteEntity dog = new SpriteEntity();
+
+        // GuardDog.png:
+        // - animacje ruchu są w tych samych kolumnach co Guard/Guardian,
+        //   ale mają 4 klatki zamiast 5: wiersze 0..3 w danej kolumnie,
+        // - śmierć: 5. wiersz arkusza, czyli indeks row=4, klatki w kolumnach 0..3,
+        // - atak: 6. wiersz arkusza, czyli indeks row=5, klatki w kolumnach 0..2.
+        dog.addAnimation("walk_toward",
+            new SpriteAnimation(List.of(
+                new int[]{0,0}, new int[]{1,0}, new int[]{2,0}, new int[]{3,0}
+            ), 110, true));
+
+        dog.addAnimation("walk_toward_left",
+            new SpriteAnimation(List.of(
+                new int[]{0,1}, new int[]{1,1}, new int[]{2,1}, new int[]{3,1}
+            ), 110, true));
+
+        dog.addAnimation("walk_left",
+            new SpriteAnimation(List.of(
+                new int[]{0,2}, new int[]{1,2}, new int[]{2,2}, new int[]{3,2}
+            ), 110, true));
+
+        dog.addAnimation("walk_back_left",
+            new SpriteAnimation(List.of(
+                new int[]{0,3}, new int[]{1,3}, new int[]{2,3}, new int[]{3,3}
+            ), 110, true));
+
+        dog.addAnimation("walk_back",
+            new SpriteAnimation(List.of(
+                new int[]{0,4}, new int[]{1,4}, new int[]{2,4}, new int[]{3,4}
+            ), 110, true));
+
+        dog.addAnimation("walk_back_right",
+            new SpriteAnimation(List.of(
+                new int[]{0,5}, new int[]{1,5}, new int[]{2,5}, new int[]{3,5}
+            ), 110, true));
+
+        dog.addAnimation("walk_right",
+            new SpriteAnimation(List.of(
+                new int[]{0,6}, new int[]{1,6}, new int[]{2,6}, new int[]{3,6}
+            ), 110, true));
+
+        dog.addAnimation("walk_right_toward",
+            new SpriteAnimation(List.of(
+                new int[]{0,7}, new int[]{1,7}, new int[]{2,7}, new int[]{3,7}
+            ), 110, true));
+
+        dog.addAnimation("death",
+            new SpriteAnimation(List.of(
+                new int[]{4,0}, new int[]{4,1}, new int[]{4,2}, new int[]{4,3}
+            ), 130));
+
+        dog.addAnimation("attack",
+            new SpriteAnimation(List.of(
+                new int[]{5,0}, new int[]{5,1}, new int[]{5,2}
+            ), 85));
+
+        dog.addAnimation("idle",
+            new SpriteAnimation(List.of(new int[]{0,0}), 500, true));
+
+        dog.playAnimation("idle");
+        return dog;
+    }
+
+
     public SpriteEntity createWeaponPistol() {
         SpriteEntity pistol = new SpriteEntity();
 

@@ -36,6 +36,7 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     private Player player;
     private Raycaster raycaster;
     private SpriteManager spriteManager;
+    private SpriteManager dogSpriteManager;
     private SpriteManager weaponManager;
     private TextureManager textureManager;
     private SoundManager soundManager;
@@ -129,6 +130,7 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     private void loadManagers() {
         textureManager = new TextureManager("com/raycasting/textures/wolfwall1.png");
         spriteManager = new SpriteManager("/com/raycasting/sprites/Guard.png");
+        dogSpriteManager = new SpriteManager("/com/raycasting/sprites/GuardDog.png");
         weaponManager = new SpriteManager("/com/raycasting/sprites/pistol.PNG");
         soundManager = new SoundManager();
     }
@@ -156,9 +158,8 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     }
 
     private void addGuards(SpriteConfigurator config) {
-        // Strażnicy są rozmieszczeni siatką po całej mapie, ale każdy spawn jest
-        // przesuwany do najbliższego pustego pola 0. Dzięki temu żaden guard nie
-        // powinien trafić do ściany i blokować ukończenia gry.
+        // Przeciwnicy są rozmieszczeni siatką po całej mapie, ale każdy spawn jest
+        // przesuwany do najbliższego pustego pola 0. Połowa to strażnicy, połowa to psy.
         int[][] preferredCells = {
             {4, 3}, {10, 3}, {16, 3}, {22, 3}, {28, 3},
             {4, 8}, {10, 8}, {16, 8}, {22, 8}, {28, 8},
@@ -166,27 +167,40 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
             {4, 18}, {10, 18}, {16, 18}, {22, 18}, {28, 18}
         };
 
+        int enemyIndex = 0;
         for (int[] cell : preferredCells) {
             int[] emptyCell = findNearestEmptyCell(cell[0], cell[1]);
 
             if (emptyCell == null) {
-                System.out.println("Pominąłem strażnika przy " + cell[0] + "/" + cell[1] + " - brak pustego pola.");
+                System.out.println("Pominąłem przeciwnika przy " + cell[0] + "/" + cell[1] + " - brak pustego pola.");
                 continue;
             }
 
-            double guardX = emptyCell[0] + 0.5;
-            double guardY = emptyCell[1] + 0.5;
+            double enemyX = emptyCell[0] + 0.5;
+            double enemyY = emptyCell[1] + 0.5;
 
-            // Nie stawiamy strażnika bezpośrednio przy starcie gracza.
-            if (Math.hypot(guardX - player.getX(), guardY - player.getY()) < 4.0) {
+            // Nie stawiamy przeciwnika bezpośrednio przy starcie gracza.
+            if (Math.hypot(enemyX - player.getX(), enemyY - player.getY()) < 4.0) {
                 continue;
             }
 
-            MovingSprite guard = new MovingSprite(guardX, guardY, config.createGuard());
-            guard.speed = 0.018;
-            // Strażnik zatrzymuje się i zaczyna strzelać z ok. 3 pól od gracza.
-            guard.STOP_DISTANCE = 3.0;
-            raycaster.addMovingSprite(guard);
+            boolean shouldSpawnDog = enemyIndex % 2 == 1;
+            MovingSprite enemy;
+
+            if (shouldSpawnDog) {
+                enemy = new MovingSprite(enemyX, enemyY, config.createGuardDog(), dogSpriteManager);
+                enemy.speed = 0.030;
+                enemy.STOP_DISTANCE = 0.75;
+                enemy.setRangedAttacker(false); // pies zadaje obrażenia tylko bezpośrednio przy graczu
+            } else {
+                enemy = new MovingSprite(enemyX, enemyY, config.createGuard(), spriteManager);
+                enemy.speed = 0.018;
+                enemy.STOP_DISTANCE = 3.0; // strażnik strzela z ok. 3 pól
+                enemy.setRangedAttacker(true);
+            }
+
+            raycaster.addMovingSprite(enemy);
+            enemyIndex++;
         }
     }
 
