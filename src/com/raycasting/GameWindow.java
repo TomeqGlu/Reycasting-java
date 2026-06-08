@@ -73,9 +73,7 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
         System.out.println("Strzałki / Mysz - rotacja widoku");
         System.out.println("SPACE - strzał z pistoletu");
         System.out.println("LPM - alternatywnie strzał");
-        System.out.println("TAB - przełącz tryb widoku");
-        System.out.println("1 - TOP_DOWN_VIEW");
-        System.out.println("2 - TEXTURED_3D");
+        System.out.println("PPM przytrzymany - widok mapy z góry");
         System.out.println("R - restart po wygranej/przegranej");
         System.out.println("ESC - wyjście");
     }
@@ -143,6 +141,8 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
         player.setAngle(Math.PI * 1.75);
 
         raycaster = new Raycaster(map, player, textureManager, spriteManager);
+        // Widok 3D jest teraz domyślny. Mapa z góry pojawia się tylko podczas przytrzymania PPM.
+        raycaster.setGameState(GameState.TEXTURED_3D);
         raycaster.setSoundManager(soundManager);
         soundManager.startBackgroundMusic();
 
@@ -413,25 +413,12 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
                 }
                 break;
 
-            case KeyEvent.VK_TAB:
-                cycleGameState();
-                break;
-
             case KeyEvent.VK_ESCAPE:
                 releaseMouse();
                 running = false;
                 System.exit(0);
                 break;
 
-            case KeyEvent.VK_1:
-                raycaster.setGameState(GameState.TOP_DOWN_VIEW);
-                System.out.println("Tryb: TOP_DOWN_VIEW");
-                break;
-
-            case KeyEvent.VK_2:
-                raycaster.setGameState(GameState.TEXTURED_3D);
-                System.out.println("Tryb: TEXTURED_3D");
-                break;
         }
     }
 
@@ -469,13 +456,24 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
         requestFocus();
         captureMouse();
 
+        if (e.getButton() == MouseEvent.BUTTON3 && !raycaster.isGameOver()) {
+            // Przytrzymanie prawego przycisku myszy pokazuje mapę z góry.
+            // W tym trybie Raycaster nie rysuje HUD-u ani broni.
+            raycaster.setGameState(GameState.TOP_DOWN_VIEW);
+            return;
+        }
+
         if (e.getButton() == MouseEvent.BUTTON1 && !raycaster.isGameOver()) {
             raycaster.shoot();
         }
     }
 
     @Override
-    public void mouseReleased(MouseEvent e) {}
+    public void mouseReleased(MouseEvent e) {
+        if (e.getButton() == MouseEvent.BUTTON3 && raycaster != null && !raycaster.isGameOver()) {
+            raycaster.setGameState(GameState.TEXTURED_3D);
+        }
+    }
 
     @Override
     public void mouseEntered(MouseEvent e) {}
@@ -497,13 +495,4 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
         releaseMouse();
     }
 
-    private void cycleGameState() {
-        if (raycaster.getGameState() == GameState.TOP_DOWN_VIEW) {
-            raycaster.setGameState(GameState.TEXTURED_3D);
-            System.out.println("Tryb: TEXTURED_3D");
-        } else {
-            raycaster.setGameState(GameState.TOP_DOWN_VIEW);
-            System.out.println("Tryb: TOP_DOWN_VIEW");
-        }
-    }
 }

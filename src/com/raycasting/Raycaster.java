@@ -243,11 +243,13 @@ public class Raycaster {
         clearBuffer(buffer);
 
         if (gameState == GameState.TOP_DOWN_VIEW) {
+            // Widok z góry jest trybem podglądu mapy: bez HUD-u, bez broni i bez czerwonego flasha,
+            // żeby nic nie zasłaniało poziomu podczas przytrzymania PPM.
             drawTopDownView(buffer);
-        } else {
-            drawTextured3D(buffer);
+            return;
         }
 
+        drawTextured3D(buffer);
         drawHud(buffer);
         drawWeapon(buffer);
         drawDamageFlash(buffer);
@@ -825,7 +827,7 @@ public class Raycaster {
             // - mniejsza wartość WEAPON_VERTICAL_OFFSET podnosi broń,
             // - większa wartość WEAPON_VERTICAL_OFFSET opuszcza broń.
             // Przykłady: -8 = wyżej, 0 = neutralnie, 12 = niżej.
-            int WEAPON_VERTICAL_OFFSET = 0;
+            int WEAPON_VERTICAL_OFFSET = -6;
             int weaponY = buffer.getHeight() - weaponSize - HUD_HEIGHT + WEAPON_VERTICAL_OFFSET;
 
             // Przycinamy każdą klatkę animacji, nie tylko idle.
