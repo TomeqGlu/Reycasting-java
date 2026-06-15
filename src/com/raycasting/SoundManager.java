@@ -10,12 +10,12 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class SoundManager {
-    // Dodaj pliki WAV do: src/main/resources/com/raycasting/sounds/
-    // Nazwy możesz zmienić poniżej, jeśli użyjesz innych plików.
-    private static final String PLAYER_SHOT = "/com/raycasting/sounds/player_shoot.wav";
-    private static final String GUARD_SHOT = "/com/raycasting/sounds/guard_shoot.wav";
-    private static final String BACKGROUND_MUSIC = "/com/raycasting/sounds/background_music.wav";
-    private static final String LOW_HEALTH_MUSIC = "/com/raycasting/sounds/low_health_music.wav";
+    
+    // private static final String PLAYER_SHOT = "/com/raycasting/sounds/player_shoot.wav";
+    private static final String PLAYER_SHOT = "./sounds/player_shoot.wav";
+    private static final String GUARD_SHOT = "./sounds/guard_shoot.wav";
+    private static final String BACKGROUND_MUSIC = "./sounds/GetThemBeforeTheyGetYou.wav";
+    private static final String LOW_HEALTH_MUSIC = "./sounds/low_health_music.wav";
 
     private Clip backgroundMusic;
     private Clip lowHealthMusic;
@@ -90,7 +90,7 @@ public class SoundManager {
         try {
             InputStream rawStream = getClass().getResourceAsStream(resourcePath);
             if (rawStream == null) {
-                System.out.println("Brak pliku dźwięku: " + resourcePath + " - gra działa dalej bez tego dźwięku.");
+                System.out.println("Brak pliku dźwięku: " + resourcePath + ".");
                 missingOrBrokenSounds.add(resourcePath);
                 return null;
             }

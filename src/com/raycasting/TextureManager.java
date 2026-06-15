@@ -10,7 +10,6 @@ public class TextureManager {
     private static final int GRID_SIZE = 8;
     private static final int TEXTURE_COUNT = 64;
 
-    // Wolfensteinowe tekstury zwykle mają 64x64
     private static final int TILE_SIZE = 64;
     private static final int TILE_STRIDE = 65; // 64 px tekstury + 1 px odstępu
 

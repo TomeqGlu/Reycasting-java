@@ -47,7 +47,7 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     private boolean mouseCaptured = false;
     private boolean recenteringMouse = false;
 
-    // Czułość myszy. Zwiększ, jeśli obrót jest za wolny; zmniejsz, jeśli za szybki.
+    // Czułość myszy. 
     private static final double MOUSE_SENSITIVITY = 0.0045;
 
     public GameWindow() {
@@ -136,12 +136,11 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     private void resetGame() {
         map = new Map();
 
-        // Start na dole mapy, lekko skierowany w stronę środka poziomu.
+        // Start na dole mapy, srodek
         player = new Player(2.5, 22.5);
         player.setAngle(Math.PI * 1.75);
 
         raycaster = new Raycaster(map, player, textureManager, spriteManager);
-        // Widok 3D jest teraz domyślny. Mapa z góry pojawia się tylko podczas przytrzymania PPM.
         raycaster.setGameState(GameState.TEXTURED_3D);
         raycaster.setSoundManager(soundManager);
         soundManager.startBackgroundMusic();
@@ -158,8 +157,7 @@ public class GameWindow extends JPanel implements Runnable, KeyListener, MouseMo
     }
 
     private void addGuards(SpriteConfigurator config) {
-        // Przeciwnicy są rozmieszczeni siatką po całej mapie, ale każdy spawn jest
-        // przesuwany do najbliższego pustego pola 0. Połowa to strażnicy, połowa to psy.
+       //Spawn przeciwnikó
         int[][] preferredCells = {
             {4, 3}, {10, 3}, {16, 3}, {22, 3}, {28, 3},
             {4, 8}, {10, 8}, {16, 8}, {22, 8}, {28, 8},

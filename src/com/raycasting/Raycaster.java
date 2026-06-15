@@ -35,7 +35,7 @@ public class Raycaster {
     private static final double MAX_LIGHT_DISTANCE = 8.0;
     private static final double MIN_LIGHT = 0.25;
 
-    private static final boolean USE_TEXTURED_FLOOR = true;
+    private static final boolean USE_TEXTURED_FLOOR = false;
     private static final boolean USE_TEXTURED_CEILING = false;
 
     private static final int FLOOR_TEXTURE_ID = 8;
@@ -95,14 +95,14 @@ public class Raycaster {
                 double dy = guard.y - player.getY();
                 double dist = Math.hypot(dx, dy);
                 
-                // Check if guard is close to ray direction
+                
                 double guardAngle = Math.atan2(dy, dx);
                 double angleDiff = Math.abs(player.getAngle() - guardAngle);
                 
-                // Normalize angle difference
+            
                 while (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
                 
-                // If within a small angle (±15 degrees) and distance is reasonable
+                
                 if (angleDiff < Math.PI / 12
                         && dist < 10.0
                         && hasLineOfSight(player.getX(), player.getY(), guard.x, guard.y)) {
@@ -174,7 +174,7 @@ public class Raycaster {
         
         if (dist == 0) return true;
         
-        // Check several points along the line
+        // Sprawdz wiele punktów na lini
         int steps = Math.max(10, (int)(dist * 4));
         for (int i = 0; i < steps; i++) {
             double t = (double) i / steps;
@@ -243,8 +243,6 @@ public class Raycaster {
         clearBuffer(buffer);
 
         if (gameState == GameState.TOP_DOWN_VIEW) {
-            // Widok z góry jest trybem podglądu mapy: bez HUD-u, bez broni i bez czerwonego flasha,
-            // żeby nic nie zasłaniało poziomu podczas przytrzymania PPM.
             drawTopDownView(buffer);
             return;
         }
