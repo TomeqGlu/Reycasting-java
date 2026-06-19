@@ -9,7 +9,7 @@ Ręczne uruchamianie:
 `./build.sh`
 
 **Windows:**
-./bulid.bat
+`./bulid.bat`
 alternatywnie:
 `javac -d bin -cp "src" src/com/raycasting/*.java`
 `java -Xmx2G -cp "bin" com.raycasting.Main`
