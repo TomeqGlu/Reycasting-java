@@ -125,6 +125,19 @@ public class Raycaster {
             // Obrażenia wejdą dopiero później, na 3. klatce animacji attack.
             guard.recordShot();
             guard.restartAttackAnimation();
+            
+            // Odtwarzamy dźwięk strzału strażnika TYLKO gdy ma broń dystansową
+            if (guard.isRangedAttacker() && soundManager != null) {
+                // Małe opóźnienie, aby dźwięk pasował do animacji
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(50);
+                        soundManager.playGuardShot();
+                    } catch (InterruptedException e) {
+                        soundManager.playGuardShot();
+                    }
+                }).start();
+            }
         }
     }
 
@@ -143,9 +156,7 @@ public class Raycaster {
                 return;
             }
 
-            if (soundManager != null) {
-                soundManager.playGuardShot();
-            }
+            // DŹWIĘK JUŻ JEST ODTWARZANY W shootAtPlayer, więc tutaj go usuwamy
         } else {
             // GuardDog nie strzela. Zadaje obrażenia tylko, jeśli w klatce ataku
             // jest bezpośrednio przy graczu.

@@ -1,21 +1,23 @@
 package com.raycasting;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
+import java.io.File;
+import java.io.IOException;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.sound.sampled.FloatControl;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
 import java.util.HashSet;
 import java.util.Set;
 
 public class SoundManager {
     
-    // private static final String PLAYER_SHOT = "/com/raycasting/sounds/player_shoot.wav";
-    private static final String PLAYER_SHOT = "./sounds/player_shoot.wav";
-    private static final String GUARD_SHOT = "./sounds/guard_shoot.wav";
-    private static final String BACKGROUND_MUSIC = "./sounds/GetThemBeforeTheyGetYou.wav";
-    private static final String LOW_HEALTH_MUSIC = "./sounds/low_health_music.wav";
+    // Ścieżki względne do folderu sounds (w bieżącym katalogu)
+    private static final String PLAYER_SHOT = "sounds/player_shoot.wav";
+    private static final String GUARD_SHOT = "sounds/guard_shoot.wav";
+    private static final String BACKGROUND_MUSIC = "sounds/GetThemBeforeTheyGetYou.wav";
+    private static final String LOW_HEALTH_MUSIC = "sounds/low_health_music.wav";
 
     private Clip backgroundMusic;
     private Clip lowHealthMusic;
@@ -31,6 +33,12 @@ public class SoundManager {
 
     public void startBackgroundMusic() {
         if (isRunning(backgroundMusic) || isRunning(lowHealthMusic)) {
+            return;
+        }
+
+        if (backgroundMusic != null && !backgroundMusic.isRunning()) {
+            backgroundMusic.setFramePosition(0);
+            backgroundMusic.start();
             return;
         }
 
@@ -64,16 +72,29 @@ public class SoundManager {
         lowHealthMusic = null;
     }
 
-    private void playOnce(String resourcePath, float volumeDb) {
-        Clip clip = createClip(resourcePath);
+    private void playOnce(String filePath, float volumeDb) {
+        Clip clip = createClip(filePath);
         if (clip == null) return;
 
         setVolume(clip, volumeDb);
         clip.start();
+        
+        // Automatyczne zamknięcie clipu po odtworzeniu (dla krótkich dźwięków)
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+                if (clip.isRunning()) {
+                    Thread.sleep(100);
+                }
+                clip.close();
+            } catch (InterruptedException e) {
+                clip.close();
+            }
+        }).start();
     }
 
-    private Clip loop(String resourcePath, float volumeDb) {
-        Clip clip = createClip(resourcePath);
+    private Clip loop(String filePath, float volumeDb) {
+        Clip clip = createClip(filePath);
         if (clip == null) return null;
 
         setVolume(clip, volumeDb);
@@ -82,28 +103,45 @@ public class SoundManager {
         return clip;
     }
 
-    private Clip createClip(String resourcePath) {
-        if (missingOrBrokenSounds.contains(resourcePath)) {
+    private Clip createClip(String filePath) {
+        if (missingOrBrokenSounds.contains(filePath)) {
+            System.out.println("Pomijanie wcześniej brakującego pliku: " + filePath);
             return null;
         }
 
         try {
-            InputStream rawStream = getClass().getResourceAsStream(resourcePath);
-            if (rawStream == null) {
-                System.out.println("Brak pliku dźwięku: " + resourcePath + ".");
-                missingOrBrokenSounds.add(resourcePath);
+            File audioFile = new File(filePath);
+            
+            if (!audioFile.exists()) {
+                System.out.println("Plik nie istnieje: " + audioFile.getAbsolutePath());
+                missingOrBrokenSounds.add(filePath);
                 return null;
             }
-
-            try (BufferedInputStream bufferedStream = new BufferedInputStream(rawStream);
-                 AudioInputStream audioStream = AudioSystem.getAudioInputStream(bufferedStream)) {
+            
+            System.out.println("Ładowanie dźwięku: " + audioFile.getAbsolutePath());
+            
+            try (AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile)) {
                 Clip clip = AudioSystem.getClip();
                 clip.open(audioStream);
+                System.out.println("Załadowano pomyślnie: " + filePath);
                 return clip;
             }
+            
+        } catch (UnsupportedAudioFileException e) {
+            System.out.println("Niewspierany format pliku " + filePath + ": " + e.getMessage());
+            missingOrBrokenSounds.add(filePath);
+            return null;
+        } catch (IOException e) {
+            System.out.println("Błąd IO przy odczycie pliku " + filePath + ": " + e.getMessage());
+            missingOrBrokenSounds.add(filePath);
+            return null;
+        } catch (LineUnavailableException e) {
+            System.out.println("Linia audio niedostępna: " + e.getMessage());
+            missingOrBrokenSounds.add(filePath);
+            return null;
         } catch (Exception e) {
-            System.out.println("Nie udało się odtworzyć dźwięku " + resourcePath + ": " + e.getMessage());
-            missingOrBrokenSounds.add(resourcePath);
+            System.out.println("Nieoczekiwany błąd przy ładowaniu " + filePath + ": " + e.getMessage());
+            missingOrBrokenSounds.add(filePath);
             return null;
         }
     }
@@ -111,9 +149,15 @@ public class SoundManager {
     private void stopClip(Clip clip) {
         if (clip == null) return;
 
-        clip.stop();
-        clip.flush();
-        clip.close();
+        try {
+            if (clip.isRunning()) {
+                clip.stop();
+            }
+            clip.flush();
+            clip.close();
+        } catch (Exception e) {
+            System.out.println("Błąd przy zatrzymywaniu clipu: " + e.getMessage());
+        }
     }
 
     private boolean isRunning(Clip clip) {
@@ -121,12 +165,22 @@ public class SoundManager {
     }
 
     private void setVolume(Clip clip, float volumeDb) {
-        if (clip == null || !clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+        if (clip == null) return;
+        
+        if (!clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+            System.out.println("Kontrola głośności niedostępna dla tego clipu");
             return;
         }
 
-        FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-        float safeVolume = Math.max(gain.getMinimum(), Math.min(gain.getMaximum(), volumeDb));
-        gain.setValue(safeVolume);
+        try {
+            FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            float min = gain.getMinimum();
+            float max = gain.getMaximum();
+            float safeVolume = Math.max(min, Math.min(max, volumeDb));
+            gain.setValue(safeVolume);
+            System.out.println("Ustawiono głośność na: " + safeVolume + " dB");
+        } catch (Exception e) {
+            System.out.println("Błąd przy ustawianiu głośności: " + e.getMessage());
+        }
     }
 }
