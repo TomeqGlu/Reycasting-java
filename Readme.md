@@ -16,6 +16,6 @@ Ręczne uruchamianie:
 - WASD - ruch
 - Mysz - obrót kamery
 - Strzałki - alternatywny obrót
-- SPACJA - zmiana trybu gry
-- 1-4 - szybkie przełączanie trybów
+- SPACJA - STRZAŁ
+- PPM - PODGLĄD Z GÓRY
 - ESC - wyjście
